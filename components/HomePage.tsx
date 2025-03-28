@@ -52,7 +52,7 @@ const HomePage: React.FC = () => {
       name: "Chequing Account",
       accountNumber: "**** **** **** 1234",
       balance: INITIAL_BALANCE,
-      currency: "USD",
+      currency: "CAD",
       type: "chequing",
     },
     {
@@ -60,7 +60,7 @@ const HomePage: React.FC = () => {
       name: "Savings Account",
       accountNumber: "**** **** **** 5678",
       balance: INITIAL_BALANCE,
-      currency: "USD",
+      currency: "CAD",
       type: "savings",
     },
   ]);
