@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,12 +23,19 @@ interface Category {
   type: "income" | "expense";
 }
 
+interface Account {
+  id: string;
+  name: string;
+  type: "chequing" | "savings";
+}
+
 export interface TransactionData {
   id: number;
   merchant: string;
   amount: number;
   date: string;
   icon: IconName;
+  accountId: string;
 }
 
 const categories: Category[] = [
@@ -43,6 +50,12 @@ const categories: Category[] = [
     id: "investment",
     name: "Investment",
     icon: "trending-up-outline",
+    type: "income",
+  },
+  {
+    id: "interest",
+    name: "Interest",
+    icon: "analytics-outline",
     type: "income",
   },
   { id: "gift", name: "Gift", icon: "gift-outline", type: "income" },
@@ -64,8 +77,15 @@ const categories: Category[] = [
   { id: "health", name: "Health", icon: "medical-outline", type: "expense" },
 ];
 
+const accounts: Account[] = [
+  { id: "chequing", name: "Chequing Account", type: "chequing" },
+  { id: "savings", name: "Savings Account", type: "savings" },
+];
+
 export default function AddTransactionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
   const [transactionType, setTransactionType] = useState<"income" | "expense">(
     "expense"
   );
@@ -74,6 +94,15 @@ export default function AddTransactionScreen() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null
   );
+  const [selectedAccountId, setSelectedAccountId] =
+    useState<string>("chequing");
+
+  // Set initial account from params if available
+  useEffect(() => {
+    if (params.accountId && typeof params.accountId === "string") {
+      setSelectedAccountId(params.accountId);
+    }
+  }, [params.accountId]);
 
   const filteredCategories = categories.filter(
     (category) => category.type === transactionType
@@ -112,6 +141,7 @@ export default function AddTransactionScreen() {
           : Math.abs(parseFloat(amount)),
       date: formatDate(),
       icon: selectedCategory.icon,
+      accountId: selectedAccountId,
     };
 
     try {
@@ -200,6 +230,46 @@ export default function AddTransactionScreen() {
         </View>
 
         <View style={styles.formContainer}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Account</Text>
+            <View style={styles.accountSelectorContainer}>
+              {accounts.map((account) => (
+                <TouchableOpacity
+                  key={account.id}
+                  style={[
+                    styles.accountOption,
+                    selectedAccountId === account.id
+                      ? styles.selectedAccountOption
+                      : null,
+                  ]}
+                  onPress={() => setSelectedAccountId(account.id)}
+                >
+                  <Ionicons
+                    name={
+                      account.type === "chequing"
+                        ? "wallet-outline"
+                        : "save-outline"
+                    }
+                    size={20}
+                    color={
+                      selectedAccountId === account.id ? "#1E3A8A" : "#6B7280"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.accountOptionText,
+                      selectedAccountId === account.id
+                        ? styles.selectedAccountOptionText
+                        : null,
+                    ]}
+                  >
+                    {account.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
               {transactionType === "expense" ? "Merchant" : "Source"}
@@ -308,6 +378,35 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#4B5563",
     marginBottom: 8,
+  },
+  accountSelectorContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  accountOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  selectedAccountOption: {
+    backgroundColor: "#E0E7FF",
+    borderColor: "#1E3A8A",
+    borderWidth: 1,
+  },
+  accountOptionText: {
+    fontSize: 14,
+    marginLeft: 8,
+    color: "#4B5563",
+  },
+  selectedAccountOptionText: {
+    color: "#1E3A8A",
+    fontWeight: "bold",
   },
   textInput: {
     backgroundColor: "#FFFFFF",

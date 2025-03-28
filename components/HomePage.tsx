@@ -15,10 +15,12 @@ import {
 } from "react-native";
 
 interface AccountData {
+  id: string;
   name: string;
   accountNumber: string;
   balance: number;
   currency: string;
+  type: "chequing" | "savings";
 }
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -29,6 +31,7 @@ interface Transaction {
   amount: number;
   date: string;
   icon: IconName;
+  accountId: string;
 }
 
 interface QuickAction {
@@ -43,12 +46,27 @@ const HomePage: React.FC = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("Home");
 
-  const [accountData, setAccountData] = useState<AccountData>({
-    name: "John Doe",
-    accountNumber: "**** **** **** 1234",
-    balance: INITIAL_BALANCE,
-    currency: "USD",
-  });
+  const [accounts, setAccounts] = useState<AccountData[]>([
+    {
+      id: "chequing",
+      name: "Chequing Account",
+      accountNumber: "**** **** **** 1234",
+      balance: INITIAL_BALANCE,
+      currency: "USD",
+      type: "chequing",
+    },
+    {
+      id: "savings",
+      name: "Savings Account",
+      accountNumber: "**** **** **** 5678",
+      balance: INITIAL_BALANCE,
+      currency: "USD",
+      type: "savings",
+    },
+  ]);
+
+  const [selectedAccountId, setSelectedAccountId] =
+    useState<string>("chequing");
 
   const defaultTransactions: Transaction[] = [
     {
@@ -57,6 +75,7 @@ const HomePage: React.FC = () => {
       amount: -4.5,
       date: "Today, 8:30 AM",
       icon: "cafe-outline" as IconName,
+      accountId: "chequing",
     },
     {
       id: 2,
@@ -64,6 +83,7 @@ const HomePage: React.FC = () => {
       amount: -65.2,
       date: "Yesterday, 6:15 PM",
       icon: "cart-outline" as IconName,
+      accountId: "chequing",
     },
     {
       id: 3,
@@ -71,6 +91,7 @@ const HomePage: React.FC = () => {
       amount: 2500.0,
       date: "Mar 25, 2025",
       icon: "cash-outline" as IconName,
+      accountId: "chequing",
     },
     {
       id: 4,
@@ -78,13 +99,23 @@ const HomePage: React.FC = () => {
       amount: -85.75,
       date: "Mar 23, 2025",
       icon: "flash-outline" as IconName,
+      accountId: "chequing",
     },
     {
       id: 5,
-      merchant: "Online Store",
-      amount: -129.99,
+      merchant: "Interest Payment",
+      amount: 25.5,
       date: "Mar 20, 2025",
-      icon: "bag-outline" as IconName,
+      icon: "trending-up-outline" as IconName,
+      accountId: "savings",
+    },
+    {
+      id: 6,
+      merchant: "Savings Deposit",
+      amount: 500.0,
+      date: "Mar 15, 2025",
+      icon: "cash-outline" as IconName,
+      accountId: "savings",
     },
   ];
 
@@ -92,6 +123,7 @@ const HomePage: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   const quickActions: QuickAction[] = [
     { id: 1, name: "Send", icon: "arrow-up-outline" },
@@ -120,7 +152,7 @@ const HomePage: React.FC = () => {
         ) as Transaction[];
         setTransactions(parsedTransactions);
 
-        updateBalance(parsedTransactions);
+        updateBalances(parsedTransactions);
       } else {
         // No transactions found, initialize with default data for first launch
         await AsyncStorage.setItem(
@@ -128,35 +160,48 @@ const HomePage: React.FC = () => {
           JSON.stringify(defaultTransactions)
         );
         setTransactions(defaultTransactions);
-        updateBalance(defaultTransactions);
+        updateBalances(defaultTransactions);
       }
     } catch (error) {
       console.error("Error loading transactions:", error);
       setTransactions(defaultTransactions);
-      updateBalance(defaultTransactions);
+      updateBalances(defaultTransactions);
     }
   };
 
-  const updateBalance = (transArray: Transaction[]) => {
-    const totalBalance = transArray.reduce(
-      (sum, transaction) => sum + transaction.amount,
-      INITIAL_BALANCE
-    );
+  const updateBalances = (transArray: Transaction[]) => {
+    const updatedAccounts = accounts.map((account) => {
+      // Calculate balance for this account only
+      const accountTransactions = transArray.filter(
+        (t) => t.accountId === account.id
+      );
+      const accountBalance = accountTransactions.reduce(
+        (sum, transaction) => sum + transaction.amount,
+        INITIAL_BALANCE
+      );
 
-    setAccountData((prev) => ({
-      ...prev,
-      balance: totalBalance,
-    }));
+      return {
+        ...account,
+        balance: accountBalance,
+      };
+    });
+
+    setAccounts(updatedAccounts);
   };
 
   const formatCurrency = (amount: number): string => {
-    return `${amount < 0 ? "-" : ""}${accountData.currency} ${Math.abs(
-      amount
-    ).toFixed(2)}`;
+    const selectedAccount = accounts.find(
+      (acc) => acc.id === selectedAccountId
+    );
+    const currency = selectedAccount ? selectedAccount.currency : "USD";
+    return `${amount < 0 ? "-" : ""}${currency} ${Math.abs(amount).toFixed(2)}`;
   };
 
   const navigateToAddTransaction = () => {
-    router.push("/add-transaction");
+    router.push({
+      pathname: "/add-transaction",
+      params: { accountId: selectedAccountId },
+    });
   };
 
   const navigateToEditTransaction = (transaction: Transaction) => {
@@ -177,7 +222,7 @@ const HomePage: React.FC = () => {
         JSON.stringify(updatedTransactions)
       );
       setTransactions(updatedTransactions);
-      updateBalance(updatedTransactions);
+      updateBalances(updatedTransactions);
       Alert.alert("Success", "Transaction deleted successfully");
     } catch (error) {
       console.error("Error deleting transaction:", error);
@@ -222,6 +267,12 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const selectedAccount =
+    accounts.find((acc) => acc.id === selectedAccountId) || accounts[0];
+  const filteredTransactions = transactions.filter(
+    (transaction) => transaction.accountId === selectedAccountId
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -229,7 +280,7 @@ const HomePage: React.FC = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.nameText}>{accountData.name}</Text>
+          <Text style={styles.nameText}>John Doe</Text>
         </View>
         <TouchableOpacity style={styles.profileButton}>
           <Ionicons name="person-circle-outline" size={40} color="#1E3A8A" />
@@ -237,14 +288,24 @@ const HomePage: React.FC = () => {
       </View>
 
       <View style={styles.balanceCard}>
+        <TouchableOpacity
+          style={styles.accountSelector}
+          onPress={() => setShowAccountModal(true)}
+        >
+          <Text style={styles.accountName}>{selectedAccount.name}</Text>
+          <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+
         <Text style={styles.balanceTitle}>Available Balance</Text>
         <Text style={styles.balanceAmount}>
-          {accountData.currency}{" "}
-          {accountData.balance.toLocaleString(undefined, {
+          {selectedAccount.currency}{" "}
+          {selectedAccount.balance.toLocaleString(undefined, {
             minimumFractionDigits: 2,
           })}
         </Text>
-        <Text style={styles.accountNumber}>{accountData.accountNumber}</Text>
+        <Text style={styles.accountNumber}>
+          {selectedAccount.accountNumber}
+        </Text>
 
         <View style={styles.quickActionsContainer}>
           {quickActions.map((action) => (
@@ -273,8 +334,8 @@ const HomePage: React.FC = () => {
         </View>
 
         <ScrollView style={styles.transactionsList}>
-          {transactions.length > 0 ? (
-            transactions.map((transaction) => (
+          {filteredTransactions.length > 0 ? (
+            filteredTransactions.map((transaction) => (
               <TouchableOpacity
                 key={transaction.id}
                 style={styles.transactionItem}
@@ -306,7 +367,7 @@ const HomePage: React.FC = () => {
             ))
           ) : (
             <Text style={styles.emptyText}>
-              No transactions yet. Add one to get started!
+              No transactions in this account yet. Add one to get started!
             </Text>
           )}
         </ScrollView>
@@ -382,6 +443,86 @@ const HomePage: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Account Selection Modal */}
+      <Modal
+        visible={showAccountModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAccountModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAccountModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Account</Text>
+
+              {accounts.map((account) => (
+                <TouchableOpacity
+                  key={account.id}
+                  style={[
+                    styles.accountOption,
+                    selectedAccountId === account.id &&
+                      styles.selectedAccountOption,
+                  ]}
+                  onPress={() => {
+                    setSelectedAccountId(account.id);
+                    setShowAccountModal(false);
+                  }}
+                >
+                  <View style={styles.accountOptionIconContainer}>
+                    <Ionicons
+                      name={
+                        account.type === "chequing"
+                          ? "wallet-outline"
+                          : "save-outline"
+                      }
+                      size={24}
+                      color={
+                        selectedAccountId === account.id ? "#1E3A8A" : "#6B7280"
+                      }
+                    />
+                  </View>
+                  <View style={styles.accountOptionDetails}>
+                    <Text
+                      style={[
+                        styles.accountOptionName,
+                        selectedAccountId === account.id &&
+                          styles.selectedAccountOptionText,
+                      ]}
+                    >
+                      {account.name}
+                    </Text>
+                    <Text style={styles.accountOptionBalance}>
+                      {account.currency}{" "}
+                      {account.balance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                    </Text>
+                  </View>
+                  {selectedAccountId === account.id && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#1E3A8A"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.modalOption, styles.cancelOption]}
+                onPress={() => setShowAccountModal(false)}
+              >
+                <Text style={styles.cancelOptionText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -422,6 +563,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  accountSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginRight: 5,
   },
   balanceTitle: {
     fontSize: 14,
@@ -561,6 +714,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingVertical: 20,
   },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1F2937",
+    textAlign: "center",
+    marginBottom: 20,
+  },
   modalOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -592,6 +752,43 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
     fontWeight: "500",
+  },
+  accountOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  selectedAccountOption: {
+    backgroundColor: "#F9FAFB",
+  },
+  accountOptionIconContainer: {
+    backgroundColor: "#F3F4F6",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  accountOptionDetails: {
+    flex: 1,
+  },
+  accountOptionName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  selectedAccountOptionText: {
+    color: "#1E3A8A",
+    fontWeight: "bold",
+  },
+  accountOptionBalance: {
+    fontSize: 14,
+    color: "#6B7280",
   },
 });
 
